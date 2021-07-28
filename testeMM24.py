@@ -17,14 +17,15 @@ def SetTarget(channel, target):
 
 # Programa principal
 
-ser = serial.Serial('/dev/ttyACM0')
+ser = serial.Serial('COM7')
 
-posicoes = [1000, 2000, 1000, 2000, 1000, 1500]
-canal = 2
+posicoes = [656, 2416, 656, 2416, 656, 1536]
+canal = 11
 
-for i in range(0, 6):
-    SetTarget(2, posicoes[i])
-    print(posicoes[i])
-    time.sleep(1)
+while True:
+    for i in range(0, 6):
+        SetTarget(canal, posicoes[i])
+        print(posicoes[i])
+        time.sleep(2)
     
 ser.close()
