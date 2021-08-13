@@ -1,5 +1,6 @@
 import serial
 import time
+import pygame
 
 def SetTarget(channel, target):
     global ser
@@ -63,25 +64,73 @@ def h(x):
     
     return a * x + b
 
+'''
+A(-1, 75)
+B(1, -75)
+'''
+def fj(x):
+    a = -75.0
+    b = 0.0
+
+    return a * x + b
+
+'''
+A(-1, -90)
+B(1, 90)
+'''
+def gj(x):
+    a = 90.0
+    b = 0.0
+    
+    return a * x + b
+
+'''
+A(-1, -90)
+B(1, 90)
+'''
+def hj(x):
+    a = 90.0
+    b = 0.0
+    
+    return a * x + b
+
 
 # Programa principal
 
+pygame.init()
+pygame.joystick.init()
+
 ser = serial.Serial('/dev/ttyACM0')
 
-SetTarget(6, f(0))
-SetTarget(7, g(0))
-SetTarget(8, h(0))
-
-'''
-posicoes = [656, 2416, 656, 2416, 656, 1536]
-canal = 11
-
-
 while True:
-    for i in range(0, 6):
-        SetTarget(canal, posicoes[i])
-        print(posicoes[i])
-        time.sleep(2)
-    
+    for event in pygame.event.get():
+        if event.type == pygame.JOYBUTTONDOWN:
+            print("Botão do joystick pressionado.")
+        elif event.type == pygame.JOYBUTTONUP:
+            print("Botão do joystick liberado.")
+
+    joystick_count = pygame.joystick.get_count()
+    for i in range(joystick_count):
+        joystick = pygame.joystick.Joystick(i)
+        joystick.init()
+
+        valor_eixo_azimute = joystick.get_axis(3)
+        valor_eixo_elevacao = joystick.get_axis(1)
+        valor_eixo_rotacao = joystick.get_axis(0)
+        # Converter o valor para ângulo
+        ang_azimute = fj(valor_eixo_azimute)
+        ang_elevacao = gj(valor_eixo_elevacao)
+        ang_rotacao = hj(valor_eixo_rotacao)
+
+        SetTarget(6, f(ang_azimute))
+        SetTarget(7, g(ang_elevacao))
+        SetTarget(8, h(ang_rotacao))
+        
+        print("az: "+str(ang_azimute)+" el: "+str(ang_elevacao)+ "rot: "+str(ang_rotacao))
+        
+        gatilho = joystick.get_button(0)
+        # Fazer algo com o gatilho
+        #print("gatilho: "+str(gatilho))
+            
+pygame.quit()
 ser.close()
-'''
