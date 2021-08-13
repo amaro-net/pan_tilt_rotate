@@ -7,7 +7,7 @@ def SetTarget(channel, target):
     
     target = int(target * 4)
 
-    print(target)
+    #print(target)
     
     serialBytes = [0,0,0,0]
     serialBytes[0] = 0x84
@@ -97,6 +97,8 @@ def hj(x):
 
 # Programa principal
 
+fixarPosicao = False # False ou True
+
 pygame.init()
 pygame.joystick.init()
 
@@ -106,6 +108,11 @@ while True:
     for event in pygame.event.get():
         if event.type == pygame.JOYBUTTONDOWN:
             print("Botão do joystick pressionado.")
+            joystick = pygame.joystick.Joystick(0)
+            gatilho = joystick.get_button(0)
+            # Fazer algo com o gatilho
+            if gatilho == 1:
+                fixarPosicao = not fixarPosicao
         elif event.type == pygame.JOYBUTTONUP:
             print("Botão do joystick liberado.")
 
@@ -121,16 +128,13 @@ while True:
         ang_azimute = fj(valor_eixo_azimute)
         ang_elevacao = gj(valor_eixo_elevacao)
         ang_rotacao = hj(valor_eixo_rotacao)
-
-        SetTarget(6, f(ang_azimute))
-        SetTarget(7, g(ang_elevacao))
-        SetTarget(8, h(ang_rotacao))
+        if not fixarPosicao:
+            SetTarget(6, f(ang_azimute))
+            SetTarget(7, g(ang_elevacao))
+            SetTarget(8, h(ang_rotacao))
         
-        print("az: "+str(ang_azimute)+" el: "+str(ang_elevacao)+ "rot: "+str(ang_rotacao))
+        print("az: "+str(ang_azimute)+" el: "+str(ang_elevacao)+ " rot: "+str(ang_rotacao))
         
-        gatilho = joystick.get_button(0)
-        # Fazer algo com o gatilho
-        #print("gatilho: "+str(gatilho))
-            
+                
 pygame.quit()
 ser.close()
