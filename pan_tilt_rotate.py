@@ -102,6 +102,14 @@ url_droidcam = 'http://192.168.1.2:4747'
 # Cria o objeto de captura de vídeo
 video_captura = cv2.VideoCapture(url_droidcam+'/video')
 
+posicoes_memo = [[999,999,999,0],
+                 [999,999,999,0],
+                 [999,999,999,0],
+                 [999,999,999,0],
+                 [999,999,999,0],
+                 [999,999,999,0]]
+
+gravacao_habilitada = False
 
 fixarPosicao = False # False ou True
 
@@ -115,11 +123,16 @@ if ser.isOpen():
 else:
     print("Porta "+ser.name+" está fechada.")
 
+ang_azimute = 0
+ang_elevacao = 0
+ang_rotacao = 0
+
 while True:
     # Captura um quadro da câmera
     ret, frame = video_captura.read()
-
-    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    
+    #frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
     
     # Mostra um quadro da câmera na janela
     cv2.imshow("Video", frame)
@@ -129,18 +142,7 @@ while True:
     if k != 255:
         if k == 27: # tecla esc
             break
-        
-    for event in pygame.event.get():
-        if event.type == pygame.JOYBUTTONDOWN:
-            print("Botão do joystick pressionado.")
-            joystick = pygame.joystick.Joystick(0)
-            gatilho = joystick.get_button(0)
-            # Fazer algo com o gatilho
-            if gatilho == 1:
-                fixarPosicao = not fixarPosicao
-        elif event.type == pygame.JOYBUTTONUP:
-            print("Botão do joystick liberado.")
-
+    
     joystick_count = pygame.joystick.get_count()
 
     if (joystick_count == 0):
@@ -153,17 +155,56 @@ while True:
         valor_eixo_elevacao = joystick.get_axis(1)
         valor_eixo_rotacao = joystick.get_axis(0)
         # Converter o valor para ângulo
-        ang_azimute = fj(valor_eixo_azimute)
-        ang_elevacao = gj(valor_eixo_elevacao)
-        ang_rotacao = hj(valor_eixo_rotacao)
         if not fixarPosicao:
-            SetTarget(6, f(ang_azimute))
-            SetTarget(7, g(ang_elevacao))
-            SetTarget(8, h(ang_rotacao))
-        
+            ang_azimute = fj(valor_eixo_azimute)
+            ang_elevacao = gj(valor_eixo_elevacao)
+            ang_rotacao = hj(valor_eixo_rotacao)
+
+        for event in pygame.event.get():
+            if event.type == pygame.JOYBUTTONDOWN:
+                print("Botão do joystick pressionado.")
+                joystick = pygame.joystick.Joystick(0)
+                gatilho = joystick.get_button(0)
+                botao_polegar = joystick.get_button(1)
+                # Fazer algo com o gatilho
+                if gatilho == 1:
+                    fixarPosicao = not fixarPosicao
+
+                if botao_polegar == 1:
+                    gravacao_habilitada = not gravacao_habilitada
+
+                if gravacao_habilitada:
+                    for i in range(6, 11+1):
+                        botao_pos = joystick.get_button(i)
+
+                        if botao_pos == 1:
+                            posicoes_memo[i-6][0] = ang_azimute
+                            posicoes_memo[i-6][1] = ang_elevacao
+                            posicoes_memo[i-6][2] = ang_rotacao
+
+                            if posicoes_memo[i-6][3] == 0:
+                                posicoes_memo[i-6][3] = 1
+                            else:
+                                posicoes_memo[i-6][3] = 0
+                else: # gravação não habilitada
+                    for i in range(6, 11+1):
+                        botao_pos = joystick.get_button(i)
+
+                        if botao_pos == 1:
+                            if posicoes_memo[i-6][3] == 1:
+                                ang_azimute = posicoes_memo[i-6][0]
+                                ang_elevacao = posicoes_memo[i-6][1]
+                                ang_rotacao = posicoes_memo[i-6][2]
+                                fixarPosicao = True
+                    
+            elif event.type == pygame.JOYBUTTONUP:
+                print("Botão do joystick liberado.")
+    
+        SetTarget(6, f(ang_azimute))
+        SetTarget(7, g(ang_elevacao))
+        SetTarget(8, h(ang_rotacao))            
         print("az: "+str(ang_azimute)+" el: "+str(ang_elevacao)+ " rot: "+str(ang_rotacao))
         
-                
 pygame.quit()
 ser.close()
 
