@@ -1,6 +1,7 @@
 import serial
 import time
 import pygame
+import cv2
 
 def SetTarget(channel, target):
     global ser
@@ -97,6 +98,11 @@ def hj(x):
 
 # Programa principal
 
+url_droidcam = 'http://192.168.1.2:4747'
+# Cria o objeto de captura de vídeo
+video_captura = cv2.VideoCapture(url_droidcam+'/video')
+
+
 fixarPosicao = False # False ou True
 
 pygame.init()
@@ -104,7 +110,26 @@ pygame.joystick.init()
 
 ser = serial.Serial('/dev/ttyACM0')
 
+if ser.isOpen():
+    print("Porta "+ser.name+" está aberta.")
+else:
+    print("Porta "+ser.name+" está fechada.")
+
 while True:
+    # Captura um quadro da câmera
+    ret, frame = video_captura.read()
+
+    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    
+    # Mostra um quadro da câmera na janela
+    cv2.imshow("Video", frame)
+
+    k = cv2.waitKey(30) & 0xff
+
+    if k != 255:
+        if k == 27: # tecla esc
+            break
+        
     for event in pygame.event.get():
         if event.type == pygame.JOYBUTTONDOWN:
             print("Botão do joystick pressionado.")
@@ -117,8 +142,11 @@ while True:
             print("Botão do joystick liberado.")
 
     joystick_count = pygame.joystick.get_count()
-    for i in range(joystick_count):
-        joystick = pygame.joystick.Joystick(i)
+
+    if (joystick_count == 0):
+        print("Joystick não detectado.")
+    else:
+        joystick = pygame.joystick.Joystick(0)
         joystick.init()
 
         valor_eixo_azimute = joystick.get_axis(3)
@@ -138,3 +166,6 @@ while True:
                 
 pygame.quit()
 ser.close()
+
+video_captura.release()
+cv2.destroyAllWindows()
