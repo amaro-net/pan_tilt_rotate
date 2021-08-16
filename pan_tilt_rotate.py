@@ -2,6 +2,7 @@ import serial
 import time
 import pygame
 import cv2
+import requests
 
 def SetTarget(channel, target):
     global ser
@@ -98,7 +99,7 @@ def hj(x):
 
 # Programa principal
 
-url_droidcam = 'http://192.168.1.2:4747'
+url_droidcam = 'http://192.168.1.4:4747'
 # Cria o objeto de captura de vídeo
 video_captura = cv2.VideoCapture(url_droidcam+'/video')
 
@@ -127,12 +128,32 @@ ang_azimute = 0
 ang_elevacao = 0
 ang_rotacao = 0
 
+texto = 'Gravacao habilitada'
+textos_posicoes = ['',
+                   '',
+                   '',
+                   '',
+                   '',
+                   '']
+fonte = cv2.FONT_HERSHEY_COMPLEX_SMALL
+
+
+
 while True:
     # Captura um quadro da câmera
     ret, frame = video_captura.read()
     
-    #frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    #frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    if gravacao_habilitada:
+        y_texto = 65
+        cv2.putText(frame, texto, (20,y_texto), fonte, 1,(0,255,0),1,cv2.LINE_AA)
+        
+        for j in range(0,6):
+            y_texto = y_texto + 15
+            if textos_posicoes[j-6] != '':
+                cv2.putText(frame, textos_posicoes[j-6], (20,y_texto), fonte, 1,(0,255,0),1,cv2.LINE_AA)
+            
     
     # Mostra um quadro da câmera na janela
     cv2.imshow("Video", frame)
@@ -142,6 +163,24 @@ while True:
     if k != 255:
         if k == 27: # tecla esc
             break
+        elif k == ord('L') or k == ord('l'): # L ou l
+            requests.get(url_droidcam+'/cam/1/led_toggle')
+            print("Acionamento do LED da câmera")
+        elif k == ord('F') or k == ord('f'): # F ou f
+            requests.get(url_droidcam+'/cam/1/fpslimit')
+            print('Acionamento de limite de fps (frame por segundo)')
+        elif k == ord('-'): # - (menos)
+            r = requests.get(url_droidcam+'/cam/1/zoomout')
+            print("Dimunuindo zoom")
+            #print(r.content)
+        elif k == ord('+'): # + (mais)
+            r = requests.get(url_droidcam+'/cam/1/zoomin')
+            print("Aumentando zoom")
+            #print(r.content)
+        elif k == ord('A') or k == ord('a'): # A ou a
+            r = requests.get(url_droidcam+'/cam/1/af')
+            print("Autofoco")
+        
     
     joystick_count = pygame.joystick.get_count()
 
@@ -161,17 +200,44 @@ while True:
             ang_rotacao = hj(valor_eixo_rotacao)
 
         for event in pygame.event.get():
+            if event.type == pygame.JOYHATMOTION:
+                chapeu = joystick.get_hat(0)
+
+                x, y = chapeu
+                
+                if (y == 1):
+                    r = requests.get(url_droidcam+'/cam/1/zoomin')
+                    print("Aumentando zoom")
+                elif (y == -1):
+                    r = requests.get(url_droidcam+'/cam/1/zoomout')
+                    print("Dimunuindo zoom")
+                
             if event.type == pygame.JOYBUTTONDOWN:
                 print("Botão do joystick pressionado.")
-                joystick = pygame.joystick.Joystick(0)
                 gatilho = joystick.get_button(0)
                 botao_polegar = joystick.get_button(1)
-                # Fazer algo com o gatilho
+                botao3 = joystick.get_button(2)
+                botao4 = joystick.get_button(3)
+                botao5 = joystick.get_button(4)
+                
                 if gatilho == 1:
                     fixarPosicao = not fixarPosicao
 
                 if botao_polegar == 1:
                     gravacao_habilitada = not gravacao_habilitada
+                    texto = 'Gravacao habilitada'
+                    
+                if botao3 == 1:
+                    requests.get(url_droidcam+'/cam/1/led_toggle')
+                    print("Acionamento do LED da câmera")
+
+                if botao4 == 1:
+                    requests.get(url_droidcam+'/cam/1/fpslimit')
+                    print('Acionamento de limite de fps (frame por segundo)')
+
+                if botao5 == 1:
+                    r = requests.get(url_droidcam+'/cam/1/af')
+                    print("Autofoco")
 
                 if gravacao_habilitada:
                     for i in range(6, 11+1):
@@ -184,8 +250,10 @@ while True:
 
                             if posicoes_memo[i-6][3] == 0:
                                 posicoes_memo[i-6][3] = 1
+                                textos_posicoes[i-6] = str(i+1)+": ("+str(round(posicoes_memo[i-6][0]))+','+str(round(posicoes_memo[i-6][1]))+','+str(round(posicoes_memo[i-6][2]))+')'
                             else:
                                 posicoes_memo[i-6][3] = 0
+                                textos_posicoes[i-6] = ''
                 else: # gravação não habilitada
                     for i in range(6, 11+1):
                         botao_pos = joystick.get_button(i)
