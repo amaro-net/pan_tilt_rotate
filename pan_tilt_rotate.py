@@ -1,5 +1,4 @@
 import serial
-import time
 import pygame
 import cv2
 import requests
@@ -19,6 +18,26 @@ def SetTarget(channel, target):
 
     ser.write(serialBytes)
 
+
+def SetMultipleTargets(num_targets, first_channel, targets):
+    global ser
+
+    serialBytes = [0, 0, 0]
+
+    serialBytes[0] = 0x9f
+    serialBytes[1] = num_targets
+    serialBytes[2] = first_channel
+    
+    for i in range(0, num_targets):
+        target = int(targets[i] * 4)        
+        bytesTarget = [0, 0]
+        bytesTarget[0] = target & 0x7f
+        bytesTarget[1] = (target >> 7) & 0x7f
+
+        serialBytes.extend(bytesTarget)
+
+    ser.write(serialBytes)
+        
 
 def calculaAeB(x1,y1,x2,y2):
     a = (y2 - y1)/(x2-x1)
@@ -97,11 +116,29 @@ def hj(x):
     return a * x + b
 
 
+
+def printPosicoesGravadas():
+    global texto
+    global textos_posicoes
+    print("=============")
+    print(texto)
+    for i in range(0, len(textos_posicoes)):
+        if textos_posicoes[i] != '':
+            print(textos_posicoes[i])
+        else:
+            print("")
+
+
 # Programa principal
 
 url_droidcam = 'http://192.168.1.4:4747'
 # Cria o objeto de captura de vídeo
 video_captura = cv2.VideoCapture(url_droidcam+'/video')
+
+video_habilitado = not (video_captura is None) and video_captura.isOpened()
+
+if not video_habilitado:
+    print("Câmera não disponível.")
 
 posicoes_memo = [[999,999,999,0],
                  [999,999,999,0],
@@ -137,55 +174,58 @@ textos_posicoes = ['',
                    '']
 fonte = cv2.FONT_HERSHEY_COMPLEX_SMALL
 
+encerrar = False
 
-
-while True:
-    # Captura um quadro da câmera
-    ret, frame = video_captura.read()
-    
-    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-    #frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    if gravacao_habilitada:
-        y_texto = 65
-        cv2.putText(frame, texto, (20,y_texto), fonte, 1,(0,255,0),1,cv2.LINE_AA)
+while not encerrar:
+    if video_habilitado:
+        # Captura um quadro da câmera
+        ret, frame = video_captura.read()
         
-        for j in range(0,6):
-            y_texto = y_texto + 15
-            if textos_posicoes[j-6] != '':
-                cv2.putText(frame, textos_posicoes[j-6], (20,y_texto), fonte, 1,(0,255,0),1,cv2.LINE_AA)
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        #frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        if gravacao_habilitada:
+            y_texto = 65
+            cv2.putText(frame, texto, (20,y_texto), fonte, 1,(0,255,0),1,cv2.LINE_AA)
             
-    
-    # Mostra um quadro da câmera na janela
-    cv2.imshow("Video", frame)
+            for j in range(0,6):
+                y_texto = y_texto + 20
+                if textos_posicoes[j] != '':
+                    cv2.putText(frame, textos_posicoes[j], (20,y_texto), fonte, 1,(0,255,0),1,cv2.LINE_AA)
+                
+        
+        # Mostra um quadro da câmera na janela
+        cv2.imshow("Video", frame)
 
-    k = cv2.waitKey(30) & 0xff
+        k = cv2.waitKey(30) & 0xff
 
-    if k != 255:
-        if k == 27: # tecla esc
-            break
-        elif k == ord('L') or k == ord('l'): # L ou l
-            requests.get(url_droidcam+'/cam/1/led_toggle')
-            print("Acionamento do LED da câmera")
-        elif k == ord('F') or k == ord('f'): # F ou f
-            requests.get(url_droidcam+'/cam/1/fpslimit')
-            print('Acionamento de limite de fps (frame por segundo)')
-        elif k == ord('-'): # - (menos)
-            r = requests.get(url_droidcam+'/cam/1/zoomout')
-            print("Dimunuindo zoom")
-            #print(r.content)
-        elif k == ord('+'): # + (mais)
-            r = requests.get(url_droidcam+'/cam/1/zoomin')
-            print("Aumentando zoom")
-            #print(r.content)
-        elif k == ord('A') or k == ord('a'): # A ou a
-            r = requests.get(url_droidcam+'/cam/1/af')
-            print("Autofoco")
+        if k != 255:
+            if k == 27: # tecla esc
+                break
+            elif k == ord('L') or k == ord('l'): # L ou l
+                requests.get(url_droidcam+'/cam/1/led_toggle')
+                print("Acionamento do LED da câmera")
+            elif k == ord('F') or k == ord('f'): # F ou f
+                requests.get(url_droidcam+'/cam/1/fpslimit')
+                print('Acionamento de limite de fps (frame por segundo)')
+            elif k == ord('-'): # - (menos)
+                r = requests.get(url_droidcam+'/cam/1/zoomout')
+                print("Dimunuindo zoom")
+                #print(r.content)
+            elif k == ord('+'): # + (mais)
+                r = requests.get(url_droidcam+'/cam/1/zoomin')
+                print("Aumentando zoom")
+                #print(r.content)
+            elif k == ord('A') or k == ord('a'): # A ou a
+                r = requests.get(url_droidcam+'/cam/1/af')
+                print("Autofoco")
         
     
     joystick_count = pygame.joystick.get_count()
 
     if (joystick_count == 0):
         print("Joystick não detectado.")
+        if not video_habilitado:
+            encerrar = True
     else:
         joystick = pygame.joystick.Joystick(0)
         joystick.init()
@@ -219,6 +259,7 @@ while True:
                 botao3 = joystick.get_button(2)
                 botao4 = joystick.get_button(3)
                 botao5 = joystick.get_button(4)
+                botao6 = joystick.get_button(5)
                 
                 if gatilho == 1:
                     fixarPosicao = not fixarPosicao
@@ -226,6 +267,8 @@ while True:
                 if botao_polegar == 1:
                     gravacao_habilitada = not gravacao_habilitada
                     texto = 'Gravacao habilitada'
+                    if not video_habilitado and gravacao_habilitada:
+                        printPosicoesGravadas()
                     
                 if botao3 == 1:
                     requests.get(url_droidcam+'/cam/1/led_toggle')
@@ -239,6 +282,11 @@ while True:
                     r = requests.get(url_droidcam+'/cam/1/af')
                     print("Autofoco")
 
+                if botao6 == 1:
+                    print("Fechando...")
+                    encerrar = True
+                    break
+                
                 if gravacao_habilitada:
                     for i in range(6, 11+1):
                         botao_pos = joystick.get_button(i)
@@ -250,10 +298,16 @@ while True:
 
                             if posicoes_memo[i-6][3] == 0:
                                 posicoes_memo[i-6][3] = 1
-                                textos_posicoes[i-6] = str(i+1)+": ("+str(round(posicoes_memo[i-6][0]))+','+str(round(posicoes_memo[i-6][1]))+','+str(round(posicoes_memo[i-6][2]))+')'
+                                textos_posicoes[i-6] = str(i+1)+": ("+str(round(posicoes_memo[i-6][0]))+','\
+                                                       +str(round(posicoes_memo[i-6][1]))+','\
+                                                       +str(round(posicoes_memo[i-6][2]))+')'
                             else:
                                 posicoes_memo[i-6][3] = 0
                                 textos_posicoes[i-6] = ''
+
+                            if not video_habilitado:
+                                printPosicoesGravadas()
+                                
                 else: # gravação não habilitada
                     for i in range(6, 11+1):
                         botao_pos = joystick.get_button(i)
@@ -267,14 +321,18 @@ while True:
                     
             elif event.type == pygame.JOYBUTTONUP:
                 print("Botão do joystick liberado.")
-    
+
+        '''
         SetTarget(6, f(ang_azimute))
         SetTarget(7, g(ang_elevacao))
-        SetTarget(8, h(ang_rotacao))            
-        print("az: "+str(ang_azimute)+" el: "+str(ang_elevacao)+ " rot: "+str(ang_rotacao))
+        SetTarget(8, h(ang_rotacao))
+        '''
+        SetMultipleTargets(3, 6, [f(ang_azimute), g(ang_elevacao), h(ang_rotacao)])
+        #print("az: "+str(ang_azimute)+" el: "+str(ang_elevacao)+ " rot: "+str(ang_rotacao))
         
 pygame.quit()
 ser.close()
 
-video_captura.release()
+if not (video_captura is None):
+    video_captura.release()
 cv2.destroyAllWindows()
