@@ -2,6 +2,25 @@ import serial
 import pygame
 import cv2
 import requests
+from datetime import timedelta, datetime as dt
+
+#### Dados iniciais ####
+
+url_droidcam = 'http://192.168.1.4:4747'
+porta_serial = '/dev/ttyACM0'
+
+intervalo_autofoco_continuo = 2 # Em segundos
+intervalo_zoom_continuo = 125000 # Em microssegundos
+
+autofoco_continuo_ativado = False
+zoom_acionado = False
+
+fonte = cv2.FONT_HERSHEY_COMPLEX_SMALL
+x_texto = 20
+y_texto = 65
+cor_texto = (0,0,255) # Azul, verde, vermelho
+
+#### Definições de funções ####
 
 def SetTarget(channel, target):
     global ser
@@ -129,9 +148,22 @@ def printPosicoesGravadas():
             print("")
 
 
-# Programa principal
+############################
+#### Programa principal ####
+############################
 
-url_droidcam = 'http://192.168.1.4:4747'
+
+droidcam_led_toggle = url_droidcam+'/cam/1/led_toggle'
+droidcam_fpslimit = url_droidcam+'/cam/1/fpslimit'
+droidcam_zoomout = url_droidcam+'/cam/1/zoomout'
+droidcam_zoomin = url_droidcam+'/cam/1/zoomin'
+droidcam_autofocus = url_droidcam+'/cam/1/af'
+
+droidcam_comando_zoom = ''
+
+tempo_inicio_autofoco_continuo = 0
+tempo_inicio_mudanca_zoom = 0
+
 # Cria o objeto de captura de vídeo
 video_captura = cv2.VideoCapture(url_droidcam+'/video')
 
@@ -149,12 +181,12 @@ posicoes_memo = [[999,999,999,0],
 
 gravacao_habilitada = False
 
-fixarPosicao = False # False ou True
+fixarPosicao = False
 
 pygame.init()
 pygame.joystick.init()
 
-ser = serial.Serial('/dev/ttyACM0')
+ser = serial.Serial(porta_serial)
 
 if ser.isOpen():
     print("Porta "+ser.name+" está aberta.")
@@ -172,11 +204,11 @@ textos_posicoes = ['',
                    '',
                    '',
                    '']
-fonte = cv2.FONT_HERSHEY_COMPLEX_SMALL
-
 encerrar = False
 
 while not encerrar:
+    
+    ### Tratamento do vídeo ###    
     if video_habilitado:
         # Captura um quadro da câmera
         ret, frame = video_captura.read()
@@ -184,13 +216,13 @@ while not encerrar:
         frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         #frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
         if gravacao_habilitada:
-            y_texto = 65
-            cv2.putText(frame, texto, (20,y_texto), fonte, 1,(0,255,0),1,cv2.LINE_AA)
+            y_t = y_texto
+            cv2.putText(frame, texto, (x_texto,y_t), fonte, 1,cor_texto,1,cv2.LINE_AA)
             
             for j in range(0,6):
-                y_texto = y_texto + 20
+                y_t = y_t + 20
                 if textos_posicoes[j] != '':
-                    cv2.putText(frame, textos_posicoes[j], (20,y_texto), fonte, 1,(0,255,0),1,cv2.LINE_AA)
+                    cv2.putText(frame, textos_posicoes[j], (x_texto,y_t), fonte, 1,cor_texto,1,cv2.LINE_AA)
                 
         
         # Mostra um quadro da câmera na janela
@@ -202,24 +234,44 @@ while not encerrar:
             if k == 27: # tecla esc
                 break
             elif k == ord('L') or k == ord('l'): # L ou l
-                requests.get(url_droidcam+'/cam/1/led_toggle')
+                requests.get(droidcam_led_toggle)
                 print("Acionamento do LED da câmera")
             elif k == ord('F') or k == ord('f'): # F ou f
-                requests.get(url_droidcam+'/cam/1/fpslimit')
+                requests.get(droidcam_fpslimit)
                 print('Acionamento de limite de fps (frame por segundo)')
             elif k == ord('-'): # - (menos)
-                r = requests.get(url_droidcam+'/cam/1/zoomout')
-                print("Dimunuindo zoom")
+                r = requests.get(droidcam_zoomout)
+                print("Diminuindo zoom")
                 #print(r.content)
             elif k == ord('+'): # + (mais)
-                r = requests.get(url_droidcam+'/cam/1/zoomin')
+                r = requests.get(droidcam_zoomin)
                 print("Aumentando zoom")
                 #print(r.content)
-            elif k == ord('A') or k == ord('a'): # A ou a
-                r = requests.get(url_droidcam+'/cam/1/af')
-                print("Autofoco")
+            elif k == ord('A') or k == ord('a'): # A ou a para autofoco contínuo
+                r = requests.get(droidcam_autofocus)
+                autofoco_continuo_ativado = not autofoco_continuo_ativado
+                tempo_inicio_autofoco_continuo = dt.utcnow()
+                if autofoco_continuo_ativado:
+                    print("Autofoco contínuo ativado")
+                else:
+                    print("Autofoco contínuo desativado")
+
+
+    ### Tratamento de eventos temporizados ###
+
+    if autofoco_continuo_ativado:
+        if (dt.utcnow() - tempo_inicio_autofoco_continuo).total_seconds() >= intervalo_autofoco_continuo:
+            requests.get(droidcam_autofocus)
+            tempo_inicio_autofoco_continuo = dt.utcnow()
+
+    if zoom_acionado:
+        if (dt.utcnow() - tempo_inicio_mudanca_zoom)/timedelta(microseconds = 1) >= intervalo_zoom_continuo:
+            requests.get(droidcam_comando_zoom)
+            tempo_inicio_mudanca_zoom = dt.utcnow()
         
-    
+
+    ### Tratamento do joystick ###
+            
     joystick_count = pygame.joystick.get_count()
 
     if (joystick_count == 0):
@@ -233,7 +285,7 @@ while not encerrar:
         valor_eixo_azimute = joystick.get_axis(3)
         valor_eixo_elevacao = joystick.get_axis(1)
         valor_eixo_rotacao = joystick.get_axis(0)
-        # Converter o valor para ângulo
+        
         if not fixarPosicao:
             ang_azimute = fj(valor_eixo_azimute)
             ang_elevacao = gj(valor_eixo_elevacao)
@@ -246,11 +298,21 @@ while not encerrar:
                 x, y = chapeu
                 
                 if (y == 1):
-                    r = requests.get(url_droidcam+'/cam/1/zoomin')
+                    r = requests.get(droidcam_zoomin)
+                    droidcam_comando_zoom = droidcam_zoomin
+                    tempo_inicio_mudanca_zoom = dt.utcnow()
+                    zoom_acionado = True
                     print("Aumentando zoom")
                 elif (y == -1):
-                    r = requests.get(url_droidcam+'/cam/1/zoomout')
-                    print("Dimunuindo zoom")
+                    r = requests.get(droidcam_zoomout)
+                    droidcam_comando_zoom = droidcam_zoomout
+                    tempo_inicio_mudanca_zoom = dt.utcnow()
+                    zoom_acionado = True
+                    print("Diminuindo zoom")
+                else:
+                    droidcam_comando_zoom = ''
+                    zoom_acionado = False
+                    
                 
             if event.type == pygame.JOYBUTTONDOWN:
                 print("Botão do joystick pressionado.")
@@ -271,16 +333,21 @@ while not encerrar:
                         printPosicoesGravadas()
                     
                 if botao3 == 1:
-                    requests.get(url_droidcam+'/cam/1/led_toggle')
+                    requests.get(droidcam_led_toggle)
                     print("Acionamento do LED da câmera")
 
                 if botao4 == 1:
-                    requests.get(url_droidcam+'/cam/1/fpslimit')
+                    requests.get(droidcam_fpslimit)
                     print('Acionamento de limite de fps (frame por segundo)')
 
                 if botao5 == 1:
-                    r = requests.get(url_droidcam+'/cam/1/af')
-                    print("Autofoco")
+                    r = requests.get(droidcam_autofocus)
+                    autofoco_continuo_ativado = not autofoco_continuo_ativado
+                    tempo_inicio_autofoco_continuo = dt.utcnow()
+                    if autofoco_continuo_ativado:
+                        print("Autofoco contínuo ativado")
+                    else:
+                        print("Autofoco contínuo desativado")
 
                 if botao6 == 1:
                     print("Fechando...")
@@ -298,9 +365,10 @@ while not encerrar:
 
                             if posicoes_memo[i-6][3] == 0:
                                 posicoes_memo[i-6][3] = 1
-                                textos_posicoes[i-6] = str(i+1)+": ("+str(round(posicoes_memo[i-6][0]))+','\
-                                                       +str(round(posicoes_memo[i-6][1]))+','\
-                                                       +str(round(posicoes_memo[i-6][2]))+')'
+                                textos_posicoes[i-6] = str(i+1)+": ("\
+                                                       +str(round(posicoes_memo[i-6][0], ndigits = 1))+', '\
+                                                       +str(round(posicoes_memo[i-6][1], ndigits = 1))+', '\
+                                                       +str(round(posicoes_memo[i-6][2], ndigits = 1))+')'
                             else:
                                 posicoes_memo[i-6][3] = 0
                                 textos_posicoes[i-6] = ''
@@ -322,6 +390,8 @@ while not encerrar:
             elif event.type == pygame.JOYBUTTONUP:
                 print("Botão do joystick liberado.")
 
+
+        ### Tratamento de acionamento dos servomotores ###
         '''
         SetTarget(6, f(ang_azimute))
         SetTarget(7, g(ang_elevacao))
