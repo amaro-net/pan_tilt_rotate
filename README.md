@@ -7,5 +7,11 @@ Neste repositório, consta o código fonte principal (pan_tilt_rotate.py), em Py
 programa que interliga joystick cobra, placa Mini Maestro 24 e API da Droidcam (para 
 celulares Android), e um código-fonte de teste da placa Mini Maestro 24 (testeMM24.py).
 
+Canal Amaro Robótica na COS.TV:                                               
+https://cos.tv/channel/18349567838955520
+
+Canal Amaro Robótica na Odysee:                                     
+https://odysee.com/@AmaroRobotica:a
+
 Playlist do suporte pan-tilt-rotate para celular na Odysee:                         
 [<img src="https://thumbs.odycdn.com/4252ffc565fba4065e7ae4c0e25d7a39.webp" width="362" height="203">](https://odysee.com/@AmaroRobotica:a/Suporte-pan-tilt-rotate-para-celular:e)
